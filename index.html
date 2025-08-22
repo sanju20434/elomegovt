@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Elome - सरकार की वेबसाइटें</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --tw-bg-opacity: 1;
+      --tw-border-opacity: 1;
+    }
+    .dark {
+      --tw-bg-opacity: 1;
+      background-color: rgb(17 24 39 / var(--tw-bg-opacity));
+      color: #d1d5db;
+    }
+    .dark .bg-white {
+      background-color: rgb(31 41 55 / var(--tw-bg-opacity));
+      border-color: rgb(75 85 99 / var(--tw-border-opacity));
+    }
+    .dark .bg-gray-100 {
+      background-color: rgb(55 65 81 / var(--tw-bg-opacity));
+    }
+    .dark .text-gray-700, .dark .text-gray-800 {
+      color: #d1d5db;
+    }
+    .dark .text-blue-800 {
+      color: #93c5fd;
+    }
+    .dark .border-gray-300 {
+      border-color: #4b5563;
+    }
+    .dark .focus\:border-blue-500:focus {
+      border-color: #60a5fa;
+    }
+    .elome-title {
+      font-size: 8vw;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to right, #4285F4, #DB4437, #F4B400, #0F9D58);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    @media (min-width: 768px) {
+      .elome-title {
+        font-size: 5vw;
+      }
+    }
+    .btn-shadow {
+      box-shadow: 0 1px 1px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.15);
+    }
+  </style>
+  <script type="module">
+    // Firebase SDK imports
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBrild7-NFooT1faqW9UbAkhu3LduV-y4c",
+      authDomain: "elome-govt-websites.firebaseapp.com",
+      projectId: "elome-govt-websites",
+      storageBucket: "elome-govt-websites.firebasestorage.app",
+      messagingSenderId: "457972889957",
+      appId: "1:457972889957:web:fa9d544fd5a92e9a48c98c",
+      measurementId: "G-T6L1M0PM1C"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // Use the appId from the config for database paths
+    const appId = firebaseConfig.appId;
+    const initialAuthToken = null; // No custom token needed for anonymous auth
+
+    let userId = null;
+    let isAuthReady = false;
+
+    // --- Authentication ---
+    async function authenticateUser() {
+      try {
+        if (initialAuthToken) {
+          await signInWithCustomToken(auth, initialAuthToken);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Authentication failed:", error);
+      }
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        userId = user.uid;
+        isAuthReady = true;
+        console.log("User authenticated with UID:", userId);
+        initializeAppLogic();
+      } else {
+        console.log("User is not authenticated. Authenticating anonymously...");
+        await authenticateUser();
+      }
+    });
+
+    // --- App Constants ---
+    const CREATOR_PASSWORD = "admin";
+    let govtWebsites = [];
+
+    // --- Translations ---
+    const translations = {
+      en: {
+        title: "Government Websites", elomeTitle: "Elome", creator: "Creator", suggest: "Suggest", search: "Search Websites...", elomeSearch: "Elome Search", viewAll: "View All Websites", noWebsites: "No websites found.", visitWebsite: "Visit Website", watchVideo: "Watch Video", creatorLogin: "Creator Login", password: "Password", login: "Login", back: "Back", wrongPassword: "Wrong password.", creatorDashboard: "Creator Dashboard", logout: "Logout", addUpdateWebsite: "Add / Update Website", name: "Name", description: "Description", link: "Website Link", youtubeLink: "YouTube Video Link", add: "Add", update: "Update", currentWebsites: "Current Websites", noWebsitesAdded: "No websites have been added yet.", edit: "Edit", delete: "Delete", userSuggestions: "User Suggestions", noSuggestions: "No suggestions found.", suggestionTitle: "Suggest a Website", suggestionName: "Website Name", suggestionLink: "Website Link", suggestionDescription: "What is it for?", sendSuggestion: "Send Suggestion", saveSuccess: "Saved successfully!", saveError: "An error occurred while saving.", deleteConfirm: "Are you sure you want to delete this?", deleteSuccess: "Deleted successfully.", deleteError: "An error occurred while deleting.", emptyFields: "Please fill out all fields.", suggestionSuccess: "Your suggestion has been submitted successfully. Thank you!", suggestionError: "An error occurred while submitting the suggestion.", loading: "Loading...", confirmTitle: "Confirm Action", confirmMessage: "Are you sure you want to proceed?", confirmYes: "Yes", confirmNo: "No"
+      },
+      hi: {
+        title: "सरकार की वेबसाइटें", elomeTitle: "Elome", creator: "निर्माता", suggest: "सुझाव दें", search: "वेबसाइट खोजें...", elomeSearch: "एलोम खोजें", viewAll: "सभी वेबसाइट देखें", noWebsites: "कोई वेबसाइट नहीं मिली।", visitWebsite: "वेबसाइट पर जाएं", watchVideo: "वीडियो देखें", creatorLogin: "निर्माता लॉगिन", password: "पासवर्ड", login: "लॉगिन करें", back: "वापस जाएं", wrongPassword: "गलत पासवर्ड।", creatorDashboard: "निर्माता डैशबोर्ड", logout: "लॉगआउट", addUpdateWebsite: "नई वेबसाइट जोड़ें / संपादित करें", name: "नाम", description: "विवरण", link: "वेबसाइट लिंक", youtubeLink: "यूट्यूब वीडियो लिंक", add: "जोड़ें", update: "अपडेट करें", currentWebsites: "वर्तमान वेबसाइटें", noWebsitesAdded: "कोई वेबसाइट नहीं जोड़ी गई है।", edit: "संपादित करें", delete: "हटाएं", userSuggestions: "उपयोगकर्ता के सुझाव", noSuggestions: "कोई सुझाव नहीं मिला।", suggestionTitle: "सुझाव दें", suggestionName: "वेबसाइट का नाम", suggestionLink: "वेबसाइट का लिंक", suggestionDescription: "यह किस काम आती है?", sendSuggestion: "सुझाव भेजें", saveSuccess: "सफलतापूर्वक सेव कर लिया गया!", saveError: "सेव करते समय कोई त्रुटि हुई।", deleteConfirm: "क्या आप वाकई इसे हटाना चाहते हैं?", deleteSuccess: "सफलतापूर्वक हटा दिया गया।", deleteError: "हटाते समय कोई त्रुटि हुई।", emptyFields: "कृपया सभी फ़ील्ड भरें।", suggestionSuccess: "आपका सुझाव सफलतापूर्वक भेज दिया गया है। धन्यवाद!", suggestionError: "सुझाव भेजते समय कोई त्रुटि हुई।", loading: "लोड हो रहा है...", confirmTitle: "पुष्टि करें", confirmMessage: "क्या आप वाकई आगे बढ़ना चाहते हैं?", confirmYes: "हाँ", confirmNo: "नहीं"
+      }
+    };
+
+    // --- UI Management ---
+    function showPage(pageId) {
+      document.querySelectorAll('main > div').forEach(page => {
+        page.classList.add('hidden');
+      });
+      document.getElementById(pageId).classList.remove('hidden');
+    }
+
+    function setLanguage(lang) {
+      document.querySelectorAll('[data-i18n]').forEach(element => {
+        const key = element.getAttribute('data-i18n');
+        if (translations[lang] && translations[lang][key]) {
+          if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+            element.placeholder = translations[lang][key];
+          } else {
+            element.textContent = translations[lang][key];
+          }
+        }
+      });
+      document.documentElement.lang = lang;
+      localStorage.setItem('app-lang', lang);
+    }
+
+    function toggleDarkMode() {
+      const isDarkMode = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('dark-mode', isDarkMode);
+      document.getElementById('dark-mode-icon').textContent = isDarkMode ? '🌙' : '☀️';
+    }
+
+    // --- Event Handlers ---
+    function handleCreatorLogin(event) {
+      event.preventDefault();
+      const password = document.getElementById('creator-password').value;
+      if (password === CREATOR_PASSWORD) {
+        showPage('creator-page');
+        document.getElementById('creator-password').value = '';
+        document.getElementById('password-error').classList.add('hidden');
+      } else {
+        document.getElementById('password-error').classList.remove('hidden');
+      }
+    }
+
+    function handleCreatorLogout() {
+      showPage('creator-login-page');
+      document.getElementById('password-error').classList.add('hidden');
+    }
+
+    function sanitizeInput(data) {
+      if (typeof data === 'string') {
+        return data.trim();
+      }
+      return data;
+    }
+
+    // --- Rendering Functions ---
+    function renderWebsites(websites) {
+      const container = document.getElementById('websites-container');
+      container.innerHTML = '';
+      if (websites.length === 0) {
+        container.innerHTML = `<p class="text-center text-gray-500" data-i18n="noWebsites">${translations[document.documentElement.lang].noWebsites}</p>`;
+        return;
+      }
+      websites.forEach(site => {
+        const card = document.createElement('div');
+        card.className = 'bg-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-transform duration-300 border border-blue-200 dark:bg-gray-800 dark:border-gray-600';
+        card.innerHTML = `
+          <h3 class="text-xl font-semibold mb-2 text-blue-800 dark:text-blue-300">${sanitizeInput(site.name)}</h3>
+          <p class="text-gray-700 mb-4 dark:text-gray-300">${sanitizeInput(site.description)}</p>
+          <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
+            <a href="${sanitizeInput(site.link)}" target="_blank" class="flex-1 text-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors" data-i18n="visitWebsite">${translations[document.documentElement.lang].visitWebsite}</a>
+            <a href="${sanitizeInput(site.youtubeLink)}" target="_blank" class="flex-1 text-center bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors" data-i18n="watchVideo">${translations[document.documentElement.lang].watchVideo}</a>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function renderCreatorList() {
+      const creatorList = document.getElementById('creator-list');
+      creatorList.innerHTML = '';
+      if (govtWebsites.length === 0) {
+        creatorList.innerHTML = `<p class="text-center text-gray-500" data-i18n="noWebsitesAdded">${translations[document.documentElement.lang].noWebsitesAdded}</p>`;
+        return;
+      }
+      govtWebsites.forEach((site, index) => {
+        const item = document.createElement('li');
+        item.className = 'flex justify-between items-center bg-gray-100 p-4 rounded-lg mb-2 dark:bg-gray-700';
+        item.innerHTML = `
+          <span class="text-gray-800 font-medium dark:text-gray-300">${sanitizeInput(site.name)}</span>
+          <div class="space-x-2">
+            <button class="edit-btn bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-1 px-3 rounded-lg transition-colors" data-index="${index}" data-i18n="edit">${translations[document.documentElement.lang].edit}</button>
+            <button class="delete-btn bg-red-500 hover:bg-red-600 text-white text-sm font-bold py-1 px-3 rounded-lg transition-colors" data-index="${index}" data-i18n="delete">${translations[document.documentElement.lang].delete}</button>
+          </div>
+        `;
+        creatorList.appendChild(item);
+      });
+      creatorList.querySelectorAll('.edit-btn').forEach(button => button.addEventListener('click', handleEdit));
+      creatorList.querySelectorAll('.delete-btn').forEach(button => button.addEventListener('click', handleDelete));
+    }
+
+    function renderSuggestions(suggestions) {
+      const suggestionsList = document.getElementById('suggestions-list');
+      suggestionsList.innerHTML = '';
+      if (suggestions.length === 0) {
+        suggestionsList.innerHTML = `<p class="text-center text-gray-500" data-i18n="noSuggestions">${translations[document.documentElement.lang].noSuggestions}</p>`;
+        return;
+      }
+      suggestions.forEach(suggestion => {
+        const item = document.createElement('div');
+        item.className = 'bg-gray-100 p-4 rounded-lg mb-2 dark:bg-gray-700';
+        item.innerHTML = `
+          <p class="font-semibold text-gray-800 dark:text-gray-300">${translations[document.documentElement.lang].name}: ${sanitizeInput(suggestion.name)}</p>
+          <p class="text-gray-700 dark:text-gray-300">${translations[document.documentElement.lang].link}: <a href="${sanitizeInput(suggestion.link)}" target="_blank" class="text-blue-600 hover:underline">${sanitizeInput(suggestion.link)}</a></p>
+          <p class="text-gray-700 dark:text-gray-300 mt-2">${translations[document.documentElement.lang].description}: ${sanitizeInput(suggestion.description)}</p>
+        `;
+        suggestionsList.appendChild(item);
+      });
+    }
+
+    // --- Firestore Logic ---
+    const govtWebsitesDocRef = doc(db, `artifacts/${appId}/public/data/govtWebsites/mainDoc`);
+    const suggestionsCollectionRef = collection(db, `artifacts/${appId}/public/data/suggestions`);
+
+    function initializeAppLogic() {
+      if (!isAuthReady) return;
+      onSnapshot(govtWebsitesDocRef, (docSnap) => {
+        govtWebsites = docSnap.exists() ? docSnap.data().websites || [] : [];
+        renderWebsites(govtWebsites);
+        renderCreatorList();
+      }, (error) => console.error("Error fetching websites data:", error));
+
+      onSnapshot(suggestionsCollectionRef, (querySnapshot) => {
+        const suggestions = [];
+        querySnapshot.forEach((doc) => suggestions.push(doc.data()));
+        renderSuggestions(suggestions);
+      }, (error) => console.error("Error fetching suggestions:", error));
+    }
+
+    async function handleAddUpdate(event) {
+      event.preventDefault();
+      const form = event.target;
+      const newEntry = {
+        name: sanitizeInput(form.name.value),
+        description: sanitizeInput(form.description.value),
+        link: sanitizeInput(form.link.value),
+        youtubeLink: sanitizeInput(form.youtubeLink.value)
+      };
+      const editIndex = form.getAttribute('data-edit-index');
+      const loader = document.getElementById('creator-loader');
+      loader.classList.remove('hidden');
+      try {
+        const docSnap = await getDoc(govtWebsitesDocRef);
+        const currentWebsites = docSnap.exists() ? docSnap.data().websites : [];
+        let updatedWebsites;
+        if (editIndex !== null) {
+          updatedWebsites = [...currentWebsites];
+          updatedWebsites[editIndex] = newEntry;
+        } else {
+          updatedWebsites = [...currentWebsites, newEntry];
+        }
+        await setDoc(govtWebsitesDocRef, { websites: updatedWebsites }, { merge: false });
+        form.reset();
+        form.removeAttribute('data-edit-index');
+        document.getElementById('add-update-btn').textContent = translations[document.documentElement.lang].add;
+        showModal(translations[document.documentElement.lang].saveSuccess);
+      } catch (e) {
+        console.error("Error adding/updating document: ", e);
+        showModal(translations[document.documentElement.lang].saveError);
+      } finally {
+        loader.classList.add('hidden');
+      }
+    }
+
+    function handleEdit(event) {
+      const index = event.target.getAttribute('data-index');
+      const siteToEdit = govtWebsites[index];
+      if (siteToEdit) {
+        const form = document.getElementById('creator-form');
+        form.name.value = siteToEdit.name;
+        form.description.value = siteToEdit.description;
+        form.link.value = siteToEdit.link;
+        form.youtubeLink.value = siteToEdit.youtubeLink;
+        form.setAttribute('data-edit-index', index);
+        document.getElementById('add-update-btn').textContent = translations[document.documentElement.lang].update;
+        window.scrollTo(0, 0);
+      }
+    }
+
+    async function handleDelete(event) {
+      const index = event.target.getAttribute('data-index');
+      if (govtWebsites[index]) {
+        showConfirmationModal(translations[document.documentElement.lang].deleteConfirm, async () => {
+          const loader = document.getElementById('creator-loader');
+          loader.classList.remove('hidden');
+          try {
+            const docSnap = await getDoc(govtWebsitesDocRef);
+            const currentWebsites = docSnap.exists() ? docSnap.data().websites : [];
+            const updatedWebsites = currentWebsites.filter((_, i) => i !== parseInt(index));
+            await setDoc(govtWebsitesDocRef, { websites: updatedWebsites }, { merge: false });
+            showModal(translations[document.documentElement.lang].deleteSuccess);
+          } catch (e) {
+            console.error("Error deleting document: ", e);
+            showModal(translations[document.documentElement.lang].deleteError);
+          } finally {
+            loader.classList.add('hidden');
+          }
+        });
+      }
+    }
+
+    function handleSearch() {
+      const searchTerm = document.getElementById('search-input').value.toLowerCase();
+      const filteredWebsites = govtWebsites.filter(site =>
+        site.name.toLowerCase().includes(searchTerm) ||
+        site.description.toLowerCase().includes(searchTerm)
+      );
+      renderWebsites(filteredWebsites);
+    }
+
+    async function handleSuggestionSubmit(event) {
+      event.preventDefault();
+      const form = event.target;
+      const name = sanitizeInput(form.name.value);
+      const link = sanitizeInput(form.link.value);
+      const description = sanitizeInput(form.description.value);
+      if (!name || !link || !description) {
+        showModal(translations[document.documentElement.lang].emptyFields);
+        return;
+      }
+      const loader = document.getElementById('suggestion-loader');
+      loader.classList.remove('hidden'); // Show loader
+      try {
+        await addDoc(suggestionsCollectionRef, { name, link, description, createdAt: new Date() });
+        form.reset();
+        showModal(translations[document.documentElement.lang].suggestionSuccess);
+      } catch (e) {
+        console.error("Error adding suggestion: ", e);
+        showModal(translations[document.documentElement.lang].suggestionError);
+      } finally {
+        loader.classList.add('hidden'); // Hide loader
+      }
+    }
+
+    // --- Modals ---
+    function showModal(message) {
+      const modalText = document.getElementById('modal-text');
+      modalText.textContent = message;
+      document.getElementById('modal-message').classList.remove('hidden');
+      setTimeout(() => {
+        document.getElementById('modal-message').classList.add('hidden');
+      }, 3000);
+    }
+
+    function showConfirmationModal(message, onConfirm) {
+      const modal = document.getElementById('confirmation-modal');
+      document.getElementById('confirmation-message').textContent = message;
+      const confirmBtn = document.getElementById('confirm-yes');
+      const cancelBtn = document.getElementById('confirm-no');
+      confirmBtn.onclick = () => { onConfirm(); modal.classList.add('hidden'); };
+      cancelBtn.onclick = () => { modal.classList.add('hidden'); };
+      modal.classList.remove('hidden');
+    }
+
+    // --- DOMContentLoaded Initializer ---
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedLang = localStorage.getItem('app-lang') || 'hi';
+      setLanguage(savedLang);
+      document.getElementById('lang-select').value = savedLang;
+
+      if (localStorage.getItem('dark-mode') === 'true') {
+        document.documentElement.classList.add('dark');
+        document.getElementById('dark-mode-icon').textContent = '🌙';
+      } else {
+        document.getElementById('dark-mode-icon').textContent = '☀️';
+      }
+
+      document.getElementById('creator-login-form').addEventListener('submit', handleCreatorLogin);
+      document.getElementById('back-to-elome-from-creator').addEventListener('click', () => showPage('elome-page'));
+      document.getElementById('back-to-elome-from-suggestion').addEventListener('click', () => showPage('elome-page'));
+      document.getElementById('back-to-elome-from-dashboard').addEventListener('click', () => showPage('elome-page'));
+      document.getElementById('back-to-elome-from-user').addEventListener('click', () => showPage('elome-page'));
+      document.getElementById('creator-logout-btn').addEventListener('click', handleCreatorLogout);
+      document.getElementById('creator-form').addEventListener('submit', handleAddUpdate);
+      document.getElementById('creator-btn').addEventListener('click', () => showPage('creator-login-page'));
+      document.getElementById('suggest-btn').addEventListener('click', () => showPage('suggestion-page'));
+      document.getElementById('suggestion-form').addEventListener('submit', handleSuggestionSubmit);
+      document.getElementById('search-input').addEventListener('input', handleSearch);
+      document.getElementById('elome-search-btn').addEventListener('click', () => {
+        document.getElementById('search-input').value = document.getElementById('elome-search-input').value;
+        handleSearch();
+        showPage('user-page');
+      });
+      document.getElementById('view-all-btn').addEventListener('click', () => {
+        document.getElementById('search-input').value = "";
+        handleSearch();
+        showPage('user-page');
+      });
+      document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
+      document.getElementById('lang-select').addEventListener('change', (e) => setLanguage(e.target.value));
+    });
+  </script>
+</head>
+<body class="bg-gray-100 font-sans dark:bg-gray-900">
+
+<header class="p-4 shadow-md flex justify-end items-center space-x-4 dark:bg-gray-900 sticky top-0 z-10">
+  <select id="lang-select" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors dark:bg-gray-700 dark:text-gray-300 cursor-pointer">
+    <option value="hi">हिन्दी</option>
+    <option value="en">English</option>
+  </select>
+  <button id="dark-mode-toggle" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
+    <span id="dark-mode-icon">☀️</span>
+  </button>
+  <button id="creator-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" data-i18n="creator">निर्माता</button>
+  <button id="suggest-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" data-i18n="suggest">सुझाव दें</button>
+</header>
+
+<main class="container mx-auto p-4 md:p-8">
+  <!-- Elome Home Page -->
+  <div id="elome-page" class="w-full flex flex-col items-center justify-center transition-opacity duration-500" style="min-height: calc(100vh - 150px);">
+    <h1 class="elome-title mb-6" data-i18n="elomeTitle">Elome</h1>
+    <div class="w-full max-w-lg">
+      <input type="text" id="elome-search-input" placeholder="Search..." class="w-full p-3 rounded-full border-2 border-gray-300 focus:outline-none focus:border-blue-500 transition-all dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 btn-shadow">
+    </div>
+    <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-6">
+      <button id="elome-search-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors btn-shadow dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" data-i18n="elomeSearch">एलोम खोजें</button>
+      <button id="view-all-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors btn-shadow dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" data-i18n="viewAll">सभी वेबसाइट देखें</button>
+    </div>
+  </div>
+
+  <!-- User Page (Website List) -->
+  <div id="user-page" class="hidden w-full transition-opacity duration-500">
+    <div class="flex justify-start mb-4">
+      <button id="back-to-elome-from-user" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full transition-colors" data-i18n="back">वापस जाएं</button>
+    </div>
+    <div class="mb-8">
+      <input type="text" id="search-input" data-i18n="search" placeholder="वेबसाइट खोजें..." class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 transition-all dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600">
+    </div>
+    <div id="websites-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Website cards will be injected here -->
+    </div>
+  </div>
+
+  <!-- Creator Login Page -->
+  <div id="creator-login-page" class="hidden w-full flex items-center justify-center" style="min-height: calc(100vh - 150px);">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
+      <h2 class="text-2xl font-bold mb-6 text-center text-blue-800 dark:text-blue-300" data-i18n="creatorLogin">निर्माता लॉगिन</h2>
+      <form id="creator-login-form">
+        <div class="mb-4">
+          <label for="creator-password" class="block text-gray-700 font-bold mb-2 dark:text-gray-300" data-i18n="password">पासवर्ड</label>
+          <input type="password" id="creator-password" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required>
+        </div>
+        <p id="password-error" class="text-red-500 text-sm mb-4 hidden" data-i18n="wrongPassword">गलत पासवर्ड।</p>
+        <div class="flex flex-col space-y-2">
+          <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors" data-i18n="login">लॉगिन करें</button>
+          <button type="button" id="back-to-elome-from-creator" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-colors" data-i18n="back">वापस जाएं</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Creator Dashboard Page -->
+  <div id="creator-page" class="hidden w-full">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-3xl font-bold text-blue-800 dark:text-blue-300" data-i18n="creatorDashboard">निर्माता डैशबोर्ड</h2>
+      <div>
+        <button type="button" id="back-to-elome-from-dashboard" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full transition-colors mr-2" data-i18n="back">वापस जाएं</button>
+        <button id="creator-logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full transition-colors" data-i18n="logout">लॉगआउट</button>
+      </div>
+    </div>
+    <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
+      <h3 class="text-xl font-bold mb-4" data-i18n="addUpdateWebsite">नई वेबसाइट जोड़ें / संपादित करें</h3>
+      <form id="creator-form" class="space-y-4">
+        <input type="text" id="name" name="name" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required data-i18n="name" placeholder="Name">
+        <textarea id="description" name="description" rows="3" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required data-i18n="description" placeholder="Description"></textarea>
+        <input type="url" id="link" name="link" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required data-i18n="link" placeholder="Website Link">
+        <input type="url" id="youtubeLink" name="youtubeLink" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required data-i18n="youtubeLink" placeholder="YouTube Video Link">
+        <button type="submit" id="add-update-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors" data-i18n="add">जोड़ें</button>
+      </form>
+    </div>
+    <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
+      <h3 class="text-xl font-bold mb-4" data-i18n="currentWebsites">वर्तमान वेबसाइटें</h3>
+      <ul id="creator-list"></ul>
+    </div>
+    <div class="bg-white p-6 rounded-xl shadow-lg border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
+      <h3 class="text-xl font-bold mb-4" data-i18n="userSuggestions">उपयोगकर्ता के सुझाव</h3>
+      <div id="suggestions-list" class="space-y-4"></div>
+    </div>
+    <div id="creator-loader" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+      <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
+    </div>
+  </div>
+
+  <!-- Suggestion Page -->
+  <div id="suggestion-page" class="hidden w-full flex items-center justify-center" style="min-height: calc(100vh - 150px);">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
+      <h2 class="text-2xl font-bold mb-6 text-center text-blue-800 dark:text-blue-300" data-i18n="suggestionTitle">सुझाव दें</h2>
+      <form id="suggestion-form" class="space-y-4">
+        <input type="text" id="suggestion-name" name="name" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required data-i18n="suggestionName" placeholder="Website Name">
+        <input type="url" id="suggestion-link" name="link" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required data-i18n="suggestionLink" placeholder="Website Link">
+        <textarea id="suggestion-description" name="description" rows="3" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required data-i18n="suggestionDescription" placeholder="What is it for?"></textarea>
+        <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors" data-i18n="sendSuggestion">सुझाव भेजें</button>
+        <button type="button" id="back-to-elome-from-suggestion" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-2" data-i18n="back">वापस जाएं</button>
+      </form>
+      <!-- Loader for Suggestions -->
+      <div id="suggestion-loader" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Modals -->
+<div id="modal-message" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
+  <div class="bg-white p-6 rounded-lg shadow-xl dark:bg-gray-800">
+    <p id="modal-text" class="text-center text-lg font-semibold text-gray-800 dark:text-gray-300"></p>
+  </div>
+</div>
+<div id="confirmation-modal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
+  <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-sm text-center dark:bg-gray-800">
+    <h3 class="text-xl font-bold mb-4 text-gray-800 dark:text-gray-300" data-i18n="confirmTitle">Confirm Action</h3>
+    <p id="confirmation-message" class="text-gray-700 mb-6 dark:text-gray-400"></p>
+    <div class="flex justify-center space-x-4">
+      <button id="confirm-yes" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors" data-i18n="confirmYes">Yes</button>
+      <button id="confirm-no" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors" data-i18n="confirmNo">No</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
