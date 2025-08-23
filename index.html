@@ -49,20 +49,14 @@
     .btn-shadow {
       box-shadow: 0 1px 1px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.15);
     }
-    .category-btn {
-      transition: all 0.3s ease;
-    }
-    .category-btn:hover {
-      transform: scale(1.05);
-    }
   </style>
   <script type="module">
     // Firebase SDK imports
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // Firebase configuration
+    // Your web app's Firebase configuration
     const firebaseConfig = {
       apiKey: "AIzaSyBrild7-NFooT1faqW9UbAkhu3LduV-y4c",
       authDomain: "elome-govt-websites.firebaseapp.com",
@@ -73,19 +67,26 @@
       measurementId: "G-T6L1M0PM1C"
     };
 
-
+    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
+
+    // Use the appId from the config for database paths
     const appId = firebaseConfig.appId;
+    const initialAuthToken = null; // No custom token needed for anonymous auth
 
     let userId = null;
     let isAuthReady = false;
 
-
+    // --- Authentication ---
     async function authenticateUser() {
       try {
-        await signInAnonymously(auth);
+        if (initialAuthToken) {
+          await signInWithCustomToken(auth, initialAuthToken);
+        } else {
+          await signInAnonymously(auth);
+        }
       } catch (error) {
         console.error("Authentication failed:", error);
       }
@@ -103,23 +104,21 @@
       }
     });
 
-
+    // --- App Constants ---
     const CREATOR_PASSWORD = "admin";
     let govtWebsites = [];
-    let userProfile = { type: 'general' }; // Default profile
-    const categories = ['Healthcare', 'Education', 'Banking', 'Jobs', 'Agriculture', 'Citizen Services'];
 
-
+    // --- Translations ---
     const translations = {
       en: {
-        title: "Government Websites", elomeTitle: "Elome", creator: "Creator", suggest: "Suggest", search: "Search Websites...", elomeSearch: "Elome Search", viewAll: "View All Websites", noWebsites: "No websites found.", visitWebsite: "Visit Website", watchVideo: "Watch Video", creatorLogin: "Creator Login", password: "Password", login: "Login", back: "Back", wrongPassword: "Wrong password.", creatorDashboard: "Creator Dashboard", logout: "Logout", addUpdateWebsite: "Add / Update Website", name: "Name", description: "Description", link: "Website Link", youtubeLink: "YouTube Video Link", add: "Add", update: "Update", currentWebsites: "Current Websites", noWebsitesAdded: "No websites have been added yet.", edit: "Edit", delete: "Delete", userSuggestions: "User Suggestions", noSuggestions: "No suggestions found.", suggestionTitle: "Suggest a Website", suggestionName: "Website Name", suggestionLink: "Website Link", suggestionDescription: "What is it for?", sendSuggestion: "Send Suggestion", saveSuccess: "Saved successfully!", saveError: "An error occurred while saving.", deleteConfirm: "Are you sure you want to delete this?", deleteSuccess: "Deleted successfully.", deleteError: "An error occurred while deleting.", emptyFields: "Please fill out all fields.", suggestionSuccess: "Your suggestion has been submitted successfully. Thank you!", suggestionError: "An error occurred while submitting the suggestion.", loading: "Loading...", confirmTitle: "Confirm Action", confirmMessage: "Are you sure you want to proceed?", confirmYes: "Yes", confirmNo: "No", selectCategory: "Select Category", category: "Category", profileSetup: "Setup Your Profile", userType: "User Type", submitProfile: "Submit Profile", general: "General", student: "Student", farmer: "Farmer", jobSeeker: "Job Seeker", recommendations: "Recommended Websites", feedback: "Feedback", ratePortal: "Rate this portal", reportIssue: "Report an Issue", issueDescription: "Describe the issue", submitFeedback: "Submit Feedback", analyticsDashboard: "Analytics Dashboard", mostAccessed: "Most Accessed Websites", noAnalytics: "No analytics data available.", chatbotPrompt: "Ask about government services...", ask: "Ask"
+        title: "Government Websites", elomeTitle: "Elome", creator: "Creator", suggest: "Suggest", search: "Search Websites...", elomeSearch: "Elome Search", viewAll: "View All Websites", noWebsites: "No websites found.", visitWebsite: "Visit Website", watchVideo: "Watch Video", creatorLogin: "Creator Login", password: "Password", login: "Login", back: "Back", wrongPassword: "Wrong password.", creatorDashboard: "Creator Dashboard", logout: "Logout", addUpdateWebsite: "Add / Update Website", name: "Name", description: "Description", link: "Website Link", youtubeLink: "YouTube Video Link", add: "Add", update: "Update", currentWebsites: "Current Websites", noWebsitesAdded: "No websites have been added yet.", edit: "Edit", delete: "Delete", userSuggestions: "User Suggestions", noSuggestions: "No suggestions found.", suggestionTitle: "Suggest a Website", suggestionName: "Website Name", suggestionLink: "Website Link", suggestionDescription: "What is it for?", sendSuggestion: "Send Suggestion", saveSuccess: "Saved successfully!", saveError: "An error occurred while saving.", deleteConfirm: "Are you sure you want to delete this?", deleteSuccess: "Deleted successfully.", deleteError: "An error occurred while deleting.", emptyFields: "Please fill out all fields.", suggestionSuccess: "Your suggestion has been submitted successfully. Thank you!", suggestionError: "An error occurred while submitting the suggestion.", loading: "Loading...", confirmTitle: "Confirm Action", confirmMessage: "Are you sure you want to proceed?", confirmYes: "Yes", confirmNo: "No"
       },
       hi: {
-        title: "सरकार की वेबसाइटें", elomeTitle: "Elome", creator: "निर्माता", suggest: "सुझाव दें", search: "वेबसाइट खोजें...", elomeSearch: "एलोम खोजें", viewAll: "सभी वेबसाइट देखें", noWebsites: "कोई वेबसाइट नहीं मिली।", visitWebsite: "वेबसाइट पर जाएं", watchVideo: "वीडियो देखें", creatorLogin: "निर्माता लॉगिन", password: "पासवर्ड", login: "लॉगिन करें", back: "वापस जाएं", wrongPassword: "गलत पासवर्ड।", creatorDashboard: "निर्माता डैशबोर्ड", logout: "लॉगआउट", addUpdateWebsite: "नई वेबसाइट जोड़ें / संपादित करें", name: "नाम", description: "विवरण", link: "वेबसाइट लिंक", youtubeLink: "यूट्यूब वीडियो लिंक", add: "जोड़ें", update: "अपडेट करें", currentWebsites: "वर्तमान वेबसाइटें", noWebsitesAdded: "कोई वेबसाइट नहीं जोड़ी गई है।", edit: "संपादित करें", delete: "हटाएं", userSuggestions: "उपयोगकर्ता के सुझाव", noSuggestions: "कोई सुझाव नहीं मिला।", suggestionTitle: "सुझाव दें", suggestionName: "वेबसाइट का नाम", suggestionLink: "वेबसाइट का लिंक", suggestionDescription: "यह किस काम आती है?", sendSuggestion: "सुझाव भेजें", saveSuccess: "सफलतापूर्वक सेव कर लिया गया!", saveError: "सेव करते समय कोई त्रुटि हुई।", deleteConfirm: "क्या आप वाकई इसे हटाना चाहते हैं?", deleteSuccess: "सफलतापूर्वक हटा दिया गया।", deleteError: "हटाते समय कोई त्रुटि हुई।", emptyFields: "कृपया सभी फ़ील्ड भरें।", suggestionSuccess: "आपका सुझाव सफलतापूर्वक भेज दिया गया है। धन्यवाद!", suggestionError: "सुझाव भेजते समय कोई त्रुटि हुई।", loading: "लोड हो रहा है...", confirmTitle: "पुष्टि करें", confirmMessage: "क्या आप वाकई आगे बढ़ना चाहते हैं?", confirmYes: "हाँ", confirmNo: "नहीं", selectCategory: "श्रेणी चुनें", category: "श्रेणी", profileSetup: "अपना प्रोफाइल सेट करें", userType: "उपयोगकर्ता प्रकार", submitProfile: "प्रोफाइल सबमिट करें", general: "सामान्य", student: "छात्र", farmer: "किसान", jobSeeker: "नौकरी तलाशने वाला", recommendations: "अनुशंसित वेबसाइटें", feedback: "प्रतिक्रिया", ratePortal: "इस पोर्टल को रेट करें", reportIssue: "समस्या की सूचना दें", issueDescription: "समस्या का वर्णन करें", submitFeedback: "प्रतिक्रिया सबमिट करें", analyticsDashboard: "विश्लेषण डैशबोर्ड", mostAccessed: "सबसे अधिक देखी गई वेबसाइटें", noAnalytics: "कोई विश्लेषण डेटा उपलब्ध नहीं है।", chatbotPrompt: "सरकारी सेवाओं के बारे में पूछें...", ask: "पूछें"
+        title: "सरकार की वेबसाइटें", elomeTitle: "Elome", creator: "निर्माता", suggest: "सुझाव दें", search: "वेबसाइट खोजें...", elomeSearch: "एलोम खोजें", viewAll: "सभी वेबसाइट देखें", noWebsites: "कोई वेबसाइट नहीं मिली।", visitWebsite: "वेबसाइट पर जाएं", watchVideo: "वीडियो देखें", creatorLogin: "निर्माता लॉगिन", password: "पासवर्ड", login: "लॉगिन करें", back: "वापस जाएं", wrongPassword: "गलत पासवर्ड।", creatorDashboard: "निर्माता डैशबोर्ड", logout: "लॉगआउट", addUpdateWebsite: "नई वेबसाइट जोड़ें / संपादित करें", name: "नाम", description: "विवरण", link: "वेबसाइट लिंक", youtubeLink: "यूट्यूब वीडियो लिंक", add: "जोड़ें", update: "अपडेट करें", currentWebsites: "वर्तमान वेबसाइटें", noWebsitesAdded: "कोई वेबसाइट नहीं जोड़ी गई है।", edit: "संपादित करें", delete: "हटाएं", userSuggestions: "उपयोगकर्ता के सुझाव", noSuggestions: "कोई सुझाव नहीं मिला।", suggestionTitle: "सुझाव दें", suggestionName: "वेबसाइट का नाम", suggestionLink: "वेबसाइट का लिंक", suggestionDescription: "यह किस काम आती है?", sendSuggestion: "सुझाव भेजें", saveSuccess: "सफलतापूर्वक सेव कर लिया गया!", saveError: "सेव करते समय कोई त्रुटि हुई।", deleteConfirm: "क्या आप वाकई इसे हटाना चाहते हैं?", deleteSuccess: "सफलतापूर्वक हटा दिया गया।", deleteError: "हटाते समय कोई त्रुटि हुई।", emptyFields: "कृपया सभी फ़ील्ड भरें।", suggestionSuccess: "आपका सुझाव सफलतापूर्वक भेज दिया गया है। धन्यवाद!", suggestionError: "सुझाव भेजते समय कोई त्रुटि हुई।", loading: "लोड हो रहा है...", confirmTitle: "पुष्टि करें", confirmMessage: "क्या आप वाकई आगे बढ़ना चाहते हैं?", confirmYes: "हाँ", confirmNo: "नहीं"
       }
     };
 
-
+    // --- UI Management ---
     function showPage(pageId) {
       document.querySelectorAll('main > div').forEach(page => {
         page.classList.add('hidden');
@@ -140,10 +139,6 @@
       });
       document.documentElement.lang = lang;
       localStorage.setItem('app-lang', lang);
-      renderWebsites(govtWebsites);
-      renderCreatorList();
-      renderSuggestions([]);
-      renderRecommendations();
     }
 
     function toggleDarkMode() {
@@ -152,7 +147,7 @@
       document.getElementById('dark-mode-icon').textContent = isDarkMode ? '🌙' : '☀️';
     }
 
-
+    // --- Event Handlers ---
     function handleCreatorLogin(event) {
       event.preventDefault();
       const password = document.getElementById('creator-password').value;
@@ -177,7 +172,7 @@
       return data;
     }
 
-
+    // --- Rendering Functions ---
     function renderWebsites(websites) {
       const container = document.getElementById('websites-container');
       container.innerHTML = '';
@@ -190,21 +185,14 @@
         card.className = 'bg-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-transform duration-300 border border-blue-200 dark:bg-gray-800 dark:border-gray-600';
         card.innerHTML = `
           <h3 class="text-xl font-semibold mb-2 text-blue-800 dark:text-blue-300">${sanitizeInput(site.name)}</h3>
-          <p class="text-gray-700 mb-2 dark:text-gray-300">${translations[document.documentElement.lang].category}: ${sanitizeInput(site.category)}</p>
           <p class="text-gray-700 mb-4 dark:text-gray-300">${sanitizeInput(site.description)}</p>
           <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
             <a href="${sanitizeInput(site.link)}" target="_blank" class="flex-1 text-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors" data-i18n="visitWebsite">${translations[document.documentElement.lang].visitWebsite}</a>
             <a href="${sanitizeInput(site.youtubeLink)}" target="_blank" class="flex-1 text-center bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors" data-i18n="watchVideo">${translations[document.documentElement.lang].watchVideo}</a>
-            <button class="feedback-btn flex-1 text-center bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg transition-colors" data-id="${site.id}" data-i18n="feedback">${translations[document.documentElement.lang].feedback}</button>
           </div>
         `;
         container.appendChild(card);
       });
-      document.querySelectorAll('.feedback-btn').forEach(btn => btn.addEventListener('click', (e) => {
-        const siteId = e.target.getAttribute('data-id');
-        showPage('feedback-page');
-        document.getElementById('feedback-form').setAttribute('data-site-id', siteId);
-      }));
     }
 
     function renderCreatorList() {
@@ -218,7 +206,7 @@
         const item = document.createElement('li');
         item.className = 'flex justify-between items-center bg-gray-100 p-4 rounded-lg mb-2 dark:bg-gray-700';
         item.innerHTML = `
-          <span class="text-gray-800 font-medium dark:text-gray-300">${sanitizeInput(site.name)} (${sanitizeInput(site.category)})</span>
+          <span class="text-gray-800 font-medium dark:text-gray-300">${sanitizeInput(site.name)}</span>
           <div class="space-x-2">
             <button class="edit-btn bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-1 px-3 rounded-lg transition-colors" data-index="${index}" data-i18n="edit">${translations[document.documentElement.lang].edit}</button>
             <button class="delete-btn bg-red-500 hover:bg-red-600 text-white text-sm font-bold py-1 px-3 rounded-lg transition-colors" data-index="${index}" data-i18n="delete">${translations[document.documentElement.lang].delete}</button>
@@ -249,69 +237,16 @@
       });
     }
 
-    function renderRecommendations() {
-      const recommendationsContainer = document.getElementById('recommendations-container');
-      recommendationsContainer.innerHTML = '';
-      const recommendedWebsites = getRecommendedWebsites();
-      if (recommendedWebsites.length === 0) {
-        recommendationsContainer.innerHTML = `<p class="text-center text-gray-500" data-i18n="noWebsites">${translations[document.documentElement.lang].noWebsites}</p>`;
-        return;
-      }
-      recommendedWebsites.forEach(site => {
-        const card = document.createElement('div');
-        card.className = 'bg-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-transform duration-300 border border-blue-200 dark:bg-gray-800 dark:border-gray-600';
-        card.innerHTML = `
-          <h3 class="text-xl font-semibold mb-2 text-blue-800 dark:text-blue-300">${sanitizeInput(site.name)}</h3>
-          <p class="text-gray-700 mb-2 dark:text-gray-300">${translations[document.documentElement.lang].category}: ${sanitizeInput(site.category)}</p>
-          <p class="text-gray-700 mb-4 dark:text-gray-300">${sanitizeInput(site.description)}</p>
-          <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
-            <a href="${sanitizeInput(site.link)}" target="_blank" class="flex-1 text-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors" data-i18n="visitWebsite">${translations[document.documentElement.lang].visitWebsite}</a>
-            <a href="${sanitizeInput(site.youtubeLink)}" target="_blank" class="flex-1 text-center bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors" data-i18n="watchVideo">${translations[document.documentElement.lang].watchVideo}</a>
-          </div>
-        `;
-        recommendationsContainer.appendChild(card);
-      });
-    }
-
-    function renderAnalytics() {
-      const analyticsContainer = document.getElementById('analytics-container');
-      analyticsContainer.innerHTML = '';
-      const docRef = doc(db, `artifacts/${appId}/public/data/analytics/main`);
-      onSnapshot(docRef, (docSnap) => {
-        if (!docSnap.exists()) {
-          analyticsContainer.innerHTML = `<p class="text-center text-gray-500" data-i18n="noAnalytics">${translations[document.documentElement.lang].noAnalytics}</p>`;
-          return;
-        }
-        const analyticsData = docSnap.data();
-        const sortedWebsites = Object.entries(analyticsData.websites || {})
-          .sort((a, b) => b[1].accessCount - a[1].accessCount)
-          .slice(0, 5);
-        sortedWebsites.forEach(([siteId, data]) => {
-          const item = document.createElement('div');
-          item.className = 'bg-gray-100 p-4 rounded-lg mb-2 dark:bg-gray-700';
-          item.innerHTML = `
-            <p class="font-semibold text-gray-800 dark:text-gray-300">${sanitizeInput(data.name)} (${sanitizeInput(data.category)})</p>
-            <p class="text-gray-700 dark:text-gray-300">Access Count: ${data.accessCount}</p>
-          `;
-          analyticsContainer.appendChild(item);
-        });
-      });
-    }
-
-
+    // --- Firestore Logic ---
     const govtWebsitesDocRef = doc(db, `artifacts/${appId}/public/data/govtWebsites/mainDoc`);
     const suggestionsCollectionRef = collection(db, `artifacts/${appId}/public/data/suggestions`);
-    const feedbackCollectionRef = collection(db, `artifacts/${appId}/public/data/feedback`);
-    const analyticsDocRef = doc(db, `artifacts/${appId}/public/data/analytics/main`);
 
     function initializeAppLogic() {
       if (!isAuthReady) return;
       onSnapshot(govtWebsitesDocRef, (docSnap) => {
         govtWebsites = docSnap.exists() ? docSnap.data().websites || [] : [];
-        govtWebsites.forEach((site, index) => site.id = index); // Assign IDs
         renderWebsites(govtWebsites);
         renderCreatorList();
-        renderRecommendations();
       }, (error) => console.error("Error fetching websites data:", error));
 
       onSnapshot(suggestionsCollectionRef, (querySnapshot) => {
@@ -319,8 +254,6 @@
         querySnapshot.forEach((doc) => suggestions.push(doc.data()));
         renderSuggestions(suggestions);
       }, (error) => console.error("Error fetching suggestions:", error));
-
-      renderAnalytics();
     }
 
     async function handleAddUpdate(event) {
@@ -330,8 +263,7 @@
         name: sanitizeInput(form.name.value),
         description: sanitizeInput(form.description.value),
         link: sanitizeInput(form.link.value),
-        youtubeLink: sanitizeInput(form.youtubeLink.value),
-        category: sanitizeInput(form.category.value)
+        youtubeLink: sanitizeInput(form.youtubeLink.value)
       };
       const editIndex = form.getAttribute('data-edit-index');
       const loader = document.getElementById('creator-loader');
@@ -368,7 +300,6 @@
         form.description.value = siteToEdit.description;
         form.link.value = siteToEdit.link;
         form.youtubeLink.value = siteToEdit.youtubeLink;
-        form.category.value = siteToEdit.category;
         form.setAttribute('data-edit-index', index);
         document.getElementById('add-update-btn').textContent = translations[document.documentElement.lang].update;
         window.scrollTo(0, 0);
@@ -399,10 +330,9 @@
 
     function handleSearch() {
       const searchTerm = document.getElementById('search-input').value.toLowerCase();
-      const selectedCategory = document.getElementById('category-filter').value;
       const filteredWebsites = govtWebsites.filter(site =>
-        (site.name.toLowerCase().includes(searchTerm) || site.description.toLowerCase().includes(searchTerm)) &&
-        (selectedCategory === '' || site.category === selectedCategory)
+        site.name.toLowerCase().includes(searchTerm) ||
+        site.description.toLowerCase().includes(searchTerm)
       );
       renderWebsites(filteredWebsites);
     }
@@ -418,7 +348,7 @@
         return;
       }
       const loader = document.getElementById('suggestion-loader');
-      loader.classList.remove('hidden');
+      loader.classList.remove('hidden'); // Show loader
       try {
         await addDoc(suggestionsCollectionRef, { name, link, description, createdAt: new Date() });
         form.reset();
@@ -427,90 +357,11 @@
         console.error("Error adding suggestion: ", e);
         showModal(translations[document.documentElement.lang].suggestionError);
       } finally {
-        loader.classList.add('hidden');
+        loader.classList.add('hidden'); // Hide loader
       }
     }
 
-    async function handleProfileSubmit(event) {
-      event.preventDefault();
-      const form = event.target;
-      userProfile.type = form.userType.value;
-      localStorage.setItem('userProfile', JSON.stringify(userProfile));
-      showPage('elome-page');
-      renderRecommendations();
-    }
-
-    async function handleFeedbackSubmit(event) {
-      event.preventDefault();
-      const form = event.target;
-      const siteId = form.getAttribute('data-site-id');
-      const rating = form.rating.value;
-      const issue = sanitizeInput(form.issue.value);
-      const loader = document.getElementById('feedback-loader');
-      loader.classList.remove('hidden');
-      try {
-        await addDoc(feedbackCollectionRef, {
-          siteId,
-          rating,
-          issue,
-          createdAt: new Date()
-        });
-        // Update analytics
-        const site = govtWebsites[siteId];
-        const analyticsSnap = await getDoc(analyticsDocRef);
-        const analyticsData = analyticsSnap.exists() ? analyticsSnap.data() : { websites: {} };
-        analyticsData.websites[siteId] = analyticsData.websites[siteId] || { name: site.name, category: site.category, accessCount: 0 };
-        analyticsData.websites[siteId].accessCount = (analyticsData.websites[siteId].accessCount || 0) + 1;
-        await setDoc(analyticsDocRef, analyticsData, { merge: true });
-        form.reset();
-        showModal(translations[document.documentElement.lang].suggestionSuccess);
-        showPage('user-page');
-      } catch (e) {
-        console.error("Error submitting feedback: ", e);
-        showModal(translations[document.documentElement.lang].suggestionError);
-      } finally {
-        loader.classList.add('hidden');
-      }
-    }
-
-    function getRecommendedWebsites() {
-      const recommendations = {
-        student: ['Education', 'Jobs'],
-        farmer: ['Agriculture', 'Citizen Services'],
-        jobSeeker: ['Jobs', 'Education'],
-        general: categories
-      };
-      return govtWebsites.filter(site => recommendations[userProfile.type].includes(site.category));
-    }
-
-    async function handleChatbotSubmit(event) {
-      event.preventDefault();
-      const query = document.getElementById('chatbot-input').value.toLowerCase();
-      if (!query) return;
-      const loader = document.getElementById('chatbot-loader');
-      loader.classList.remove('hidden');
-      try {
-        // Simple keyword-based chatbot response
-        let response = translations[document.documentElement.lang].noWebsites;
-        if (query.includes('aadhaar')) {
-          const aadhaarSite = govtWebsites.find(site => site.name.toLowerCase().includes('aadhaar'));
-          if (aadhaarSite) {
-            response = `${translations[document.documentElement.lang].visitWebsite}: <a href="${aadhaarSite.link}" target="_blank" class="text-blue-600 hover:underline">${aadhaarSite.name}</a>`;
-          }
-        }
-        const chatOutput = document.getElementById('chatbot-output');
-        chatOutput.innerHTML += `<p class="text-gray-700 dark:text-gray-300">${response}</p>`;
-        chatOutput.scrollTop = chatOutput.scrollHeight;
-        document.getElementById('chatbot-input').value = '';
-      } catch (e) {
-        console.error("Error processing chatbot query: ", e);
-        showModal(translations[document.documentElement.lang].suggestionError);
-      } finally {
-        loader.classList.add('hidden');
-      }
-    }
-
-    // Modals
+    // --- Modals ---
     function showModal(message) {
       const modalText = document.getElementById('modal-text');
       modalText.textContent = message;
@@ -530,7 +381,7 @@
       modal.classList.remove('hidden');
     }
 
-    // DOMContentLoaded Initializer
+    // --- DOMContentLoaded Initializer ---
     window.addEventListener('DOMContentLoaded', () => {
       const savedLang = localStorage.getItem('app-lang') || 'hi';
       setLanguage(savedLang);
@@ -543,59 +394,29 @@
         document.getElementById('dark-mode-icon').textContent = '☀️';
       }
 
-      const savedProfile = localStorage.getItem('userProfile');
-      if (savedProfile) {
-        userProfile = JSON.parse(savedProfile);
-      }
-
       document.getElementById('creator-login-form').addEventListener('submit', handleCreatorLogin);
       document.getElementById('back-to-elome-from-creator').addEventListener('click', () => showPage('elome-page'));
       document.getElementById('back-to-elome-from-suggestion').addEventListener('click', () => showPage('elome-page'));
       document.getElementById('back-to-elome-from-dashboard').addEventListener('click', () => showPage('elome-page'));
       document.getElementById('back-to-elome-from-user').addEventListener('click', () => showPage('elome-page'));
-      document.getElementById('back-to-elome-from-profile').addEventListener('click', () => showPage('elome-page'));
-      document.getElementById('back-to-elome-from-feedback').addEventListener('click', () => showPage('user-page'));
-      document.getElementById('back-to-elome-from-chatbot').addEventListener('click', () => showPage('elome-page'));
       document.getElementById('creator-logout-btn').addEventListener('click', handleCreatorLogout);
       document.getElementById('creator-form').addEventListener('submit', handleAddUpdate);
       document.getElementById('creator-btn').addEventListener('click', () => showPage('creator-login-page'));
       document.getElementById('suggest-btn').addEventListener('click', () => showPage('suggestion-page'));
-      document.getElementById('profile-btn').addEventListener('click', () => showPage('profile-page'));
       document.getElementById('suggestion-form').addEventListener('submit', handleSuggestionSubmit);
-      document.getElementById('profile-form').addEventListener('submit', handleProfileSubmit);
-      document.getElementById('feedback-form').addEventListener('submit', handleFeedbackSubmit);
-      document.getElementById('chatbot-form').addEventListener('submit', handleChatbotSubmit);
       document.getElementById('search-input').addEventListener('input', handleSearch);
-      document.getElementById('category-filter').addEventListener('change', handleSearch);
       document.getElementById('elome-search-btn').addEventListener('click', () => {
         document.getElementById('search-input').value = document.getElementById('elome-search-input').value;
-        document.getElementById('category-filter').value = '';
         handleSearch();
         showPage('user-page');
       });
       document.getElementById('view-all-btn').addEventListener('click', () => {
         document.getElementById('search-input').value = "";
-        document.getElementById('category-filter').value = '';
         handleSearch();
         showPage('user-page');
       });
-      document.getElementById('chatbot-btn').addEventListener('click', () => showPage('chatbot-page'));
       document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
       document.getElementById('lang-select').addEventListener('change', (e) => setLanguage(e.target.value));
-      // Initialize category buttons
-      const categoryContainer = document.getElementById('category-buttons');
-      categories.forEach(category => {
-        const btn = document.createElement('button');
-        btn.className = 'category-btn px-4 py-2 bg-blue-200 text-blue-800 rounded-md hover:bg-blue-300 transition-colors btn-shadow dark:bg-blue-700 dark:text-blue-200 dark:hover:bg-blue-600';
-        btn.textContent = category;
-        btn.addEventListener('click', () => {
-          document.getElementById('category-filter').value = category;
-          document.getElementById('search-input').value = '';
-          handleSearch();
-          showPage('user-page');
-        });
-        categoryContainer.appendChild(btn);
-      });
     });
   </script>
 </head>
@@ -609,8 +430,6 @@
   <button id="dark-mode-toggle" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
     <span id="dark-mode-icon">☀️</span>
   </button>
-  <button id="profile-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" data-i18n="profileSetup">अपना प्रोफाइल सेट करें</button>
-  <button id="chatbot-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" data-i18n="ask">पूछें</button>
   <button id="creator-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" data-i18n="creator">निर्माता</button>
   <button id="suggest-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" data-i18n="suggest">सुझाव दें</button>
 </header>
@@ -626,11 +445,6 @@
       <button id="elome-search-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors btn-shadow dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" data-i18n="elomeSearch">एलोम खोजें</button>
       <button id="view-all-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors btn-shadow dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" data-i18n="viewAll">सभी वेबसाइट देखें</button>
     </div>
-    <div id="category-buttons" class="flex flex-wrap justify-center gap-4 mt-6"></div>
-    <div class="mt-8 w-full">
-      <h3 class="text-xl font-bold mb-4 text-blue-800 dark:text-blue-300" data-i18n="recommendations">अनुशंसित वेबसाइटें</h3>
-      <div id="recommendations-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-    </div>
   </div>
 
   <!-- User Page (Website List) -->
@@ -638,12 +452,8 @@
     <div class="flex justify-start mb-4">
       <button id="back-to-elome-from-user" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full transition-colors" data-i18n="back">वापस जाएं</button>
     </div>
-    <div class="mb-8 flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
-      <input type="text" id="search-input" data-i18n="search" placeholder="वेबसाइट खोजें..." class="flex-1 p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 transition-all dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600">
-      <select id="category-filter" class="p-3 rounded-lg border-2 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600">
-        <option value="" data-i18n="selectCategory">श्रेणी चुनें</option>
-        ${categories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
-      </select>
+    <div class="mb-8">
+      <input type="text" id="search-input" data-i18n="search" placeholder="वेबसाइट खोजें..." class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 transition-all dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600">
     </div>
     <div id="websites-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <!-- Website cards will be injected here -->
@@ -684,10 +494,6 @@
         <textarea id="description" name="description" rows="3" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required data-i18n="description" placeholder="Description"></textarea>
         <input type="url" id="link" name="link" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required data-i18n="link" placeholder="Website Link">
         <input type="url" id="youtubeLink" name="youtubeLink" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required data-i18n="youtubeLink" placeholder="YouTube Video Link">
-        <select id="category" name="category" class="w-full p-3 rounded-lg border-2 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required>
-          <option value="" data-i18n="selectCategory">श्रेणी चुनें</option>
-          ${categories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
-        </select>
         <button type="submit" id="add-update-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors" data-i18n="add">जोड़ें</button>
       </form>
     </div>
@@ -695,13 +501,9 @@
       <h3 class="text-xl font-bold mb-4" data-i18n="currentWebsites">वर्तमान वेबसाइटें</h3>
       <ul id="creator-list"></ul>
     </div>
-    <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
+    <div class="bg-white p-6 rounded-xl shadow-lg border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
       <h3 class="text-xl font-bold mb-4" data-i18n="userSuggestions">उपयोगकर्ता के सुझाव</h3>
       <div id="suggestions-list" class="space-y-4"></div>
-    </div>
-    <div class="bg-white p-6 rounded-xl shadow-lg border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
-      <h3 class="text-xl font-bold mb-4" data-i18n="analyticsDashboard">विश्लेषण डैशबोर्ड</h3>
-      <div id="analytics-container" class="space-y-4"></div>
     </div>
     <div id="creator-loader" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
@@ -719,68 +521,8 @@
         <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors" data-i18n="sendSuggestion">सुझाव भेजें</button>
         <button type="button" id="back-to-elome-from-suggestion" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-2" data-i18n="back">वापस जाएं</button>
       </form>
+      <!-- Loader for Suggestions -->
       <div id="suggestion-loader" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Profile Setup Page -->
-  <div id="profile-page" class="hidden w-full flex items-center justify-center" style="min-height: calc(100vh - 150px);">
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
-      <h2 class="text-2xl font-bold mb-6 text-center text-blue-800 dark:text-blue-300" data-i18n="profileSetup">अपना प्रोफाइल सेट करें</h2>
-      <form id="profile-form" class="space-y-4">
-        <select id="userType" name="userType" class="w-full p-3 rounded-lg border-2 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required>
-          <option value="general" data-i18n="general">सामान्य</option>
-          <option value="student" data-i18n="student">छात्र</option>
-          <option value="farmer" data-i18n="farmer">किसान</option>
-          <option value="jobSeeker" data-i18n="jobSeeker">नौकरी तलाशने वाला</option>
-        </select>
-        <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors" data-i18n="submitProfile">प्रोफाइल सबमिट करें</button>
-        <button type="button" id="back-to-elome-from-profile" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-2" data-i18n="back">वापस जाएं</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Feedback Page -->
-  <div id="feedback-page" class="hidden w-full flex items-center justify-center" style="min-height: calc(100vh - 150px);">
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
-      <h2 class="text-2xl font-bold mb-6 text-center text-blue-800 dark:text-blue-300" data-i18n="feedback">प्रतिक्रिया</h2>
-      <form id="feedback-form" class="space-y-4" data-site-id="">
-        <div>
-          <label class="block text-gray-700 font-bold mb-2 dark:text-gray-300" data-i18n="ratePortal">इस पोर्टल को रेट करें</label>
-          <select id="rating" name="rating" class="w-full p-3 rounded-lg border-2 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" required>
-            <option value="5">5 Stars</option>
-            <option value="4">4 Stars</option>
-            <option value="3">3 Stars</option>
-            <option value="2">2 Stars</option>
-            <option value="1">1 Star</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-gray-700 font-bold mb-2 dark:text-gray-300" data-i18n="reportIssue">समस्या की सूचना दें</label>
-          <textarea id="issue" name="issue" rows="3" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" data-i18n="issueDescription" placeholder="Describe the issue"></textarea>
-        </div>
-        <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors" data-i18n="submitFeedback">प्रतिक्रिया सबमिट करें</button>
-        <button type="button" id="back-to-elome-from-feedback" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-2" data-i18n="back">वापस जाएं</button>
-      </form>
-      <div id="feedback-loader" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Chatbot Page -->
-  <div id="chatbot-page" class="hidden w-full flex items-center justify-center" style="min-height: calc(100vh - 150px);">
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-blue-200 dark:bg-gray-800 dark:border-gray-600">
-      <h2 class="text-2xl font-bold mb-6 text-center text-blue-800 dark:text-blue-300" data-i18n="ask">पूछें</h2>
-      <div id="chatbot-output" class="h-64 overflow-y-auto mb-4 p-4 bg-gray-100 rounded-lg dark:bg-gray-700"></div>
-      <form id="chatbot-form" class="space-y-4">
-        <input type="text" id="chatbot-input" class="w-full p-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600" data-i18n="chatbotPrompt" placeholder="Ask about government services...">
-        <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors" data-i18n="ask">पूछें</button>
-        <button type="button" id="back-to-elome-from-chatbot" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-2" data-i18n="back">वापस जाएं</button>
-      </form>
-      <div id="chatbot-loader" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
       </div>
     </div>
